@@ -1,95 +1,62 @@
-import dotenv from "dotenv";
 import LearningSession from "../models/LearningSession.js";
 import User from "../models/User.js";
 
-dotenv.config();
-
-export async function initiateSession(req, res) {
+export async function initiateSession(req, res, next) {
   try {
-    // Log the uploaded file details
-    console.log("File received:", req.file);
-    console.log(req.body.title);
-    // Create new learning session
-    const learningSession = new LearningSession({
-      pdfFilename: req.file.filename,
-      title: req.body.title,
-      userId: req.body.uid,
+    const learningSession = await LearningSession.create({
+      pdfFilename: req.file ? req.file.filename : null,
+      title: (req.body.title || "").trim() || "Untitled session",
+      userId: req.user.uid, // from the verified token, never from the request body
     });
 
-    // Save to database
-    await learningSession.save();
-
-    // Send success response
-    res.json({
+    res.status(201).json({
       message: "Learning session started successfully",
-      file: req.file,
-      title: req.body.title,
       sessionId: learningSession._id,
+      title: learningSession.title,
+      hasPdf: Boolean(req.file),
     });
-  } catch (error) {
-    console.error("Error processing request:", error);
-    res.status(500).json({
-      error: "Failed to process request",
-      details: error.message,
-    });
+  } catch (err) {
+    next(err);
   }
 }
-export async function register(req, res) {
-  try {
-    const userInfo = req.body;
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ userId: userInfo.userId });
+export async function register(req, res, next) {
+  try {
+    const userId = req.user.uid;
+    const existingUser = await User.findOne({ userId });
     if (existingUser) {
-      return res.status(400).json({
-        error: "User already exists",
-        userId: existingUser.userId,
+      // Registering twice is harmless, so treat it as success.
+      return res.status(200).json({
+        message: "User already registered",
+        user: { username: existingUser.username, userId },
       });
     }
 
-    // Create new user
-    const newUser = new User({
-      username: userInfo.username,
-      userId: userInfo.userId,
-    });
+    const username =
+      (req.body.username || "").trim() || (req.user.email || "").split("@")[0] || "student";
+    const newUser = await User.create({ username, userId });
 
-    // Save user to database
-    await newUser.save();
-
-    // Send success response
     res.status(201).json({
       message: "User registered successfully",
-      user: {
-        username: newUser.username,
-        userId: newUser.userId,
-      },
+      user: { username: newUser.username, userId },
     });
-  } catch (error) {
-    console.error("Error registering user:", error);
-    res.status(500).json({
-      error: "Failed to register user",
-      details: error.message,
-    });
+  } catch (err) {
+    next(err);
   }
 }
 
-export async function getConversations(req, res) {
+export async function getConversations(req, res, next) {
   try {
-    const { userId } = req.params;
+    if (req.params.userId !== req.user.uid) {
+      return res.status(403).json({ error: "You can only view your own conversations" });
+    }
 
-    const convos = await LearningSession.find({ userId })
-      .sort({ createdAt: -1 }) // Sort by creation date in descending order (most recent first)
-      .select("_id pdfFilename title createdAt"); // Select relevant fields
+    const conversations = await LearningSession.find({ userId: req.user.uid })
+      .sort({ createdAt: -1 })
+      .select("_id title createdAt");
 
-    res.json({
-      message: "Conversations retrieved successfully",
-      conversations: convos,
-    });
-  } catch (error) {
-    console.error("Error retrieving conversations:", error);
-    res.status(500).json({
-      error: "Failed to retrieve conversations",
-      details: error.message,
-    });
+    res.json({ message: "Conversations retrieved successfully", conversations });
+  } catch (err) {
+    next(err);
   }
 }

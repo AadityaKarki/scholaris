@@ -9,7 +9,7 @@ import app from "../firebase";
 import { UserContext } from "../UserContext";
 import Padlock from "../components/padlock";
 import Fingerprint from "../components/fingerprint";
-import axios from "axios";
+import api from "../api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -17,7 +17,7 @@ export default function Login() {
   const [isRegisterOrLogin, setIsRegisterOrLogin] = useState("register");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const { username, setUsername, id, setId } = useContext(UserContext);
+  const { setUsername, setId } = useContext(UserContext);
   const auth = getAuth(app);
   const navigate = useNavigate();
 
@@ -39,14 +39,10 @@ export default function Login() {
         const displayName = email.split("@")[0];
         setUsername(displayName);
         setId(usercredential.user.uid);
-        const res = await axios.post(
-          "http://localhost:5000/start-learning/register",
-          {
-            username: username,
-            userId: id,
-          }
-        );
-        navigate(`/learnsession/${id}`);
+        // Use the values Firebase just returned: React state updates are
+        // asynchronous, so username and id would still be the old values here.
+        await api.post("/start-learning/register", { username: displayName });
+        navigate(`/learnsession/${usercredential.user.uid}`);
       } else {
         // Login logic
         const usercredential = await signInWithEmailAndPassword(

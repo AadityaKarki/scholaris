@@ -1,24 +1,19 @@
-import express from "express";
-import cors from "cors";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
-import { learningSessionRoute } from "./routes/startlearningsession.js";
-import { learnRoute } from "./routes/learn.js";
-dotenv.config();
-const app = express();
-app.use(cors());
-app.use(express.json());
+import { config } from "./config.js";
+import { createApp } from "./app.js";
 
-mongoose
-  .connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 3000,
-  })
-  .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log(err));
+async function start() {
+  try {
+    await mongoose.connect(config.mongoUri, { serverSelectionTimeoutMS: 5000 });
+    console.log("MongoDB connected");
+  } catch (err) {
+    console.error("Could not connect to MongoDB:", err.message);
+    process.exit(1);
+  }
 
-const server = app.listen(5000, () =>
-  console.log("Server running on Port 5000")
-);
+  createApp().listen(config.port, () =>
+    console.log(`Server running on port ${config.port}`)
+  );
+}
 
-app.use("/start-learning", learningSessionRoute);
-app.use("/learn", learnRoute);
+start();

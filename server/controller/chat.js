@@ -1,75 +1,46 @@
 import retrieveAnswer from "../middleware/retrieveAnswers.js";
 import Message from "../models/Messages.js";
 
-export async function answerQuestion(req, res) {
-  try {
-    const { question, learningSessionId } = req.body;
+const MAX_QUESTION_LENGTH = 2000;
 
-    if (!question || !learningSessionId) {
+export async function answerQuestion(req, res, next) {
+  try {
+    const question = typeof req.body.question === "string" ? req.body.question.trim() : "";
+    if (!question) {
+      return res.status(400).json({ success: false, message: "Question is required" });
+    }
+    if (question.length > MAX_QUESTION_LENGTH) {
       return res.status(400).json({
         success: false,
-        message: "Question and learning session ID are required",
+        message: `Questions can be at most ${MAX_QUESTION_LENGTH} characters`,
       });
     }
-    const newMessage = new Message({
-      content: question,
-      learningSessionId,
-      sender: "user",
-      type: "rag",
-    });
-    newMessage.save();
-    // Get vector store for the learning session
-    const answer = await retrieveAnswer(question, learningSessionId);
-    const newmsg = new Message({
-      content: answer,
-      learningSessionId,
-      sender: "bot",
-      type: "rag",
-    });
-    newmsg.save();
+
+    const learningSessionId = req.learningSession._id.toString();
+
+    await Message.create({ content: question, learningSessionId, sender: "user", type: "rag" });
+    const { answer, sources } = await retrieveAnswer(question, learningSessionId);
+    await Message.create({ content: answer, learningSessionId, sender: "bot", type: "rag" });
+
     return res.status(200).json({
       success: true,
-      data: {
-        answer,
-        question,
-        learningSessionId,
-      },
+      data: { answer, sources, question, learningSessionId },
     });
-  } catch (error) {
-    console.error("Error in answerQuestion:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to process question",
-      error: error.message,
-    });
+  } catch (err) {
+    return next(err);
   }
 }
 
-export async function getMessages(req, res) {
+export async function getMessages(req, res, next) {
   try {
-    const { learningSessionId } = req.params;
-
-    if (!learningSessionId) {
-      return res.status(400).json({
-        success: false,
-        message: "Learning session ID is required",
-      });
-    }
-
-    const messages = await Message.find({ learningSessionId })
+    const messages = await Message.find({
+      learningSessionId: req.learningSession._id.toString(),
+    })
       .sort({ timestamp: 1 })
       .select("-__v");
 
-    return res.status(200).json({
-      success: true,
-      data: messages,
-    });
-  } catch (error) {
-    console.error("Error in getMessages:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to retrieve messages",
-      error: error.message,
-    });
+    return res.status(200).json({ success: true, data: messages });
+  } catch (err) {
+    return next(err);
   }
 }

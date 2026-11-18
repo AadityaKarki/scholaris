@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useContext } from "react";
-import axios from "axios";
+import api from "../api";
 import ReactMarkdown from "react-markdown";
 import rehypeMathjax from "rehype-mathjax";
 import Navbar from "../components/navbar";
@@ -29,10 +29,12 @@ export default function Study() {
   }, [messages]);
 
   useEffect(() => {
+    if (!id) return; // wait until Firebase has restored the signed-in user
+
     const fetchConversations = async () => {
       try {
-        const response = await axios.get(
-          `http://localhost:5000/start-learning/conversations/${id}`
+        const response = await api.get(
+          `/start-learning/conversations/${id}`
         );
         setConversations(response.data.conversations);
         console.log(response.data.conversations);
@@ -74,7 +76,7 @@ export default function Study() {
 
     try {
       // TODO: Add your API call here to get response from server
-      const response = await axios.post("http://localhost:5000/learn/chat", {
+      const response = await api.post("/learn/chat", {
         question: inputMessage,
         learningSessionId: currentConversation._id,
       });
@@ -89,6 +91,17 @@ export default function Study() {
       setMessages((prev) => [...prev, botMessage]);
     } catch (err) {
       console.error("Error sending message:", err);
+      const reason = err.response?.data?.error || err.response?.data?.message;
+      setMessages((prev) => [
+        ...prev,
+        {
+          content: reason
+            ? `Sorry, I couldn't answer that: ${reason}`
+            : "Sorry, something went wrong. Please try again.",
+          sender: "bot",
+          createdAt: new Date().toISOString(),
+        },
+      ]);
     }
   };
 
@@ -110,11 +123,10 @@ export default function Study() {
       }
       formData.append("mode", mode);
       formData.append("title", title);
-      formData.append("uid", id);
       console.log(title);
 
-      const response = await axios.post(
-        "http://localhost:5000/start-learning/initiate-session",
+      const response = await api.post(
+        "/start-learning/initiate-session",
         formData,
         {
           headers: {
@@ -123,10 +135,9 @@ export default function Study() {
         }
       );
       if (file) {
-        await axios.post("http://localhost:5000/start-learning/extract-pdf", {
+        // The server finds the uploaded file from the session itself.
+        await api.post("/start-learning/extract-pdf", {
           learningSessionId: response.data.sessionId,
-          userId: id,
-          filename: response.data.file,
         });
       }
       const newConversation = {
@@ -151,9 +162,7 @@ export default function Study() {
     setCurrentConversation(conversation);
     setCurrentConversation((prev) => ({ ...prev, mode: "ask" }));
     // TODO: Load messages for this conversation from your backend
-    const response = await axios.get(
-      `http://localhost:5000/learn/chat/${conversation._id}`
-    );
+    const response = await api.get(`/learn/chat/${conversation._id}`);
     const msg = response.data.data;
     setMessages(msg);
     setShowModeSelection(false);

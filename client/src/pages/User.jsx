@@ -2,7 +2,7 @@ import { useContext, useState, useRef, useEffect } from "react";
 import { UserContext } from "../UserContext";
 import { getAuth, signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../api";
 import app from "../firebase";
 
 const auth = getAuth(app);
@@ -76,12 +76,11 @@ export default function User() {
     ev.preventDefault();
     const formData = new FormData();
     if (file) formData.append("pdf", file);
-    formData.append("topics", topics.join(","));
-    formData.append("userId", id);
+    formData.append("title", topics.join(", "));
 
     try {
-      const res = await axios.post(
-        "http://localhost:5000/start-learning",
+      const res = await api.post(
+        "/start-learning/initiate-session",
         formData,
         {
           headers: {
@@ -90,8 +89,8 @@ export default function User() {
         }
       );
       if (file) {
-        const pdfres = await axios.post("http://localhost:5000/extract-pdf", {
-          filename: res.data.file.filename,
+        const pdfres = await api.post("/start-learning/extract-pdf", {
+          learningSessionId: res.data.sessionId,
         });
         console.log(pdfres);
       }
