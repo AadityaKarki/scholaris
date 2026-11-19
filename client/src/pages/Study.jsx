@@ -52,9 +52,12 @@ export default function Study() {
     e.preventDefault();
     if (!inputMessage.trim() || !currentConversation) return;
 
+    // type must match the current mode, or the message list filters it out
+    const messageType = currentConversation.mode === "attempt" ? "ques" : "rag";
     const newMessage = {
       content: inputMessage,
       sender: "user",
+      type: messageType,
       createdAt: new Date().toISOString(),
     };
 
@@ -85,6 +88,7 @@ export default function Study() {
       const botMessage = {
         content: response.data.data.answer,
         sender: "bot",
+        type: messageType,
         createdAt: new Date().toISOString(),
       };
       console.log(botMessage);
@@ -99,6 +103,7 @@ export default function Study() {
             ? `Sorry, I couldn't answer that: ${reason}`
             : "Sorry, something went wrong. Please try again.",
           sender: "bot",
+          type: messageType,
           createdAt: new Date().toISOString(),
         },
       ]);
